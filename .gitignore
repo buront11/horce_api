@@ -1,0 +1,5 @@
+/venv/
+log
+*.csv
+/.vscode/
+last_updata_log.txt
