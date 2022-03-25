@@ -190,15 +190,23 @@ class HorceDateCollecter():
             info_dicts = {}
             for info in info_ids:
                 info_type = re.search(r'[a-z]+', info.get('href')).group()
+                # レースの場合リンクがいくつか存在するため欲しい情報のみに絞る
+                if info_type == 'race':
+                    if re.search(r'/race/[0-9]+', info.get('href')):
+                        pass
+                    else:
+                        continue
+
                 name = info.get_text()
                 # 地方ジョッキーなどだと英語が入るためいくつか怪しいデータになる
                 # 処理方法は後で考える
                 id = re.search(r'[0-9]+', info.get('href')).group()
 
+                # 同じレース名がある場合に不具合が発生する
                 if info_type not in info_dicts.keys():
-                    info_dicts.update({info_type:{name:id}})
+                    info_dicts.update({info_type:[id]})
                 else:
-                    info_dicts[info_type].update({name:id})
+                    info_dicts[info_type].append(id)
 
             for info_type, values in info_dicts.items():
                 if info_type == "race":
@@ -207,18 +215,8 @@ class HorceDateCollecter():
                     column = "騎手"
                 else:
                     continue
-                # なぜか馬主がないためコメントアウト
-                # else:
-                #     column = "馬主"
-                add_list = []
-                for row in df_horses[column]:
-                    # idと名前を照合し、リストに追加
-                    if row in values.keys():
-                        add_list.append(values[row])
-                    else:
-                        add_list.append(np.NAN)
                 # dfにidを新しい列として追加する
-                df_horses[f'{info_type}_id'] = add_list
+                df_horses[f'{info_type}_id'] = values
 
             df_horses['horse_id'] = horse_ids[index]
 
@@ -339,9 +337,9 @@ def main(args):
 
     horce_collect = HorceDateCollecter()
 
-    horce_collect.get_race_data()
+    # horce_collect.get_race_data()
 
-    # horce_collect.get_horse_date()
+    horce_collect.get_horse_date()
 
     # horce_collect.get_correct_jockey_name()
 

@@ -1,7 +1,11 @@
 import re
+import argparse
 
 import numpy as np
 import pandas as pd
+
+import category_encoders as ce
+from sklearn.preprocessing import StandardScaler
 
 def ranking_category2num(ranking):
     """降格などを含む順位を数値へと変換するmethod
@@ -110,7 +114,7 @@ def horse_process():
     df = pd.read_csv('horse_data.csv')
 
     # 列名を英語に変換
-    df = df.rename(columns={'日付':'day','開催':'hold','天気':'weather', 'R':'round', 
+    df = df.rename(columns={'日付':'day','開催':'hold','天気':'weather', 'R':'round',
     'レース名':'race_name', '映像':'movie', '頭数':'starters_num', '枠番':'flame', '馬番':'horse_num', 'オッズ':'odds',
     '人気':'popularity','着順':'ranking', '騎手':'jockey', '斤量':'weight', '距離':'meter', '馬場':'state',
     '馬場指数':'state_value', 'タイム':'time', '着差':'arrival_diff', 'ﾀｲﾑ指数':'time_value', '通過':'passing', 'ペース':'pace',
@@ -135,7 +139,7 @@ def horse_process():
     # レースの馬場(芝、ダート)はレース側で持ってこれるデータなので削除する
     df['meter'] = df['meter'].apply(lambda x:int(re.search(r'[0-9]+', x).group()))
 
-    # 順位を数字に変換
+    # 順位を数字に変換(適正や脚質の導出に必要)
     df['ranking'] = df['ranking'].apply(lambda x: ranking_category2num(x))
 
     # 距離適性の導出
@@ -147,17 +151,21 @@ def horse_process():
     # 累計獲得賞金の導出
     df = total_winning(df)
 
-    df.to_csv('preprocessed_horse_data.csv', index=False)
+    # レースデータと結合する際に重複する部分+不必要な部分を削除
+    # 実際のレースを予測する場合はレースの情報しかないため
+    df = df.drop(columns=['day', 'hold', 'weather', 'round', 'race_name',
+                        'flame', 'horse_num', 'odds', 'popularity', 'ranking', 'jockey',
+                        'weight', 'meter', 'state', 'time', 'arrival_diff','passing', 'pace', 
+                        '3f', 'horse_weight','second', 'winning'])
+
+    df.to_csv('preprocessed_horse.csv', index=False)
 
 def race_process():
     df = pd.read_csv('race_data.csv')
 
-    df = df.rename(columns={'着順':'ranking', '枠番':'flame', '馬番':'starters_num',\
-            '性齢':'sex_old', '斤量':'weight', '騎手':'jockey', 'タイム':'time',\
+    df = df.rename(columns={'着順':'ranking', '枠番':'flame', '馬番':'horse_num',\
+            '馬名':'horse_name','性齢':'sex_old', '斤量':'weight', '騎手':'jockey', 'タイム':'time',\
             '着差':'arrival_diff', '単勝':'odds', '人気':'popularity','馬体重':'horse_weight', '調教師':'trainer'})
-
-    # 馬のデータと結合する際に重複する部分を削除
-    df = df.drop()
 
     # 出走しなかったレースを削除
     df = df[df['ranking'].str.match(r'[0-9]+', na=False)]
@@ -165,14 +173,64 @@ def race_process():
     # 順位を数字に変換
     df['ranking'] = df['ranking'].apply(lambda x: ranking_category2num(x))
 
-    df = split_horse_weight(df)
-
+    # 性齢を分割
     df = split_sex_old(df)
 
-    df.to_csv('preprocessed_race_data.csv', index=False)
+    # 馬体重を変化量と数値に分割
+    df = split_horse_weight(df)
 
-def main():
-    pass
+    # 変換済みの列を削除
+    df = df.drop(columns=['sex_old'])
+
+    df.to_csv('preprocessed_race.csv', index=False)
+
+def merge_horse_race():
+    horse_df = pd.read_csv('preprocessed_horse.csv')
+    race_df = pd.read_csv('preprocessed_race.csv')
+
+    df = pd.merge(race_df, horse_df, on=['horse_id', 'jockey_id', 'race_id'], how='outer')
+
+    return df
+
+def preprocess():
+    horse_process()
+
+    race_process()
+
+    df = merge_horse_race()
+
+    # onehot encodeする列
+    ohe_cols = ['race_type', 'wise', 'weather', 'race_state', 'sex' ,'race_grade']
+
+    # ordinalry encodeする列
+    # id値は特に種類が多い+もとのidを使うと差が大きくなりそう
+    oe_cols = ['horse_id', 'jockey_id', 'trainer_id']
+
+    # 標準化する列
+    norm_cols = ['flame','weight','horse_num','odds','popularity','horse_weight','meter',\
+                'old','delta_weight','meter_apt','run_style','total_winning']
+
+    # fit&transform
+    # 質的変数をonehotに変換
+    ce_ohe = ce.OneHotEncoder(cols=ohe_cols, handle_unknown='impute')
+    ce_ohe.fit(df)
+
+    df = ce_ohe.transform(df)
+
+    # カーディナリティが高い変数をordinaly encode
+    ce_oe = ce.OrdinalEncoder(cols=oe_cols, handle_unknown='impute')
+    ce_oe.fit(df)
+
+    df = ce_oe.transform(df)
+
+    # いくつかの数値データの標準化
+    norm_scalar = StandardScaler()
+    norm_scalar.fit(df[norm_cols])
+    
+    df[norm_cols] = norm_scalar.transform(df[norm_cols])
+
+    df.to_csv('dataset.csv')
 
 if __name__=='__main__':
-    horse_process()
+
+    preprocess()

@@ -1,5 +1,6 @@
 /venv/
-log
+log.txt
 *.csv
 /.vscode/
 last_updata_log.txt
+/__pycache__/*
