@@ -188,7 +188,7 @@ def merge_horse_race():
     horse_df = pd.read_csv('preprocessed_horse.csv')
     race_df = pd.read_csv('preprocessed_race.csv')
 
-    df = pd.merge(race_df, horse_df, on=['horse_id', 'jockey_id', 'race_id'], how='outer')
+    df = pd.merge(race_df, horse_df, on=['horse_id', 'jockey_id', 'race_id'], how='inner')
 
     return df
 
@@ -199,6 +199,11 @@ def preprocess():
 
     df = merge_horse_race()
 
+    # 不必要なため取り除く列
+    drop_cols = ['horse_name','jockey','time','arrival_diff','trainer','starters_num','start_time']
+
+    df = df.drop(columns=drop_cols)
+
     # onehot encodeする列
     ohe_cols = ['race_type', 'wise', 'weather', 'race_state', 'sex' ,'race_grade']
 
@@ -207,7 +212,7 @@ def preprocess():
     oe_cols = ['horse_id', 'jockey_id', 'trainer_id']
 
     # 標準化する列
-    norm_cols = ['flame','weight','horse_num','odds','popularity','horse_weight','meter',\
+    norm_cols = ['flame','weight','odds','popularity','horse_weight','meter',\
                 'old','delta_weight','meter_apt','run_style','total_winning']
 
     # fit&transform
@@ -229,7 +234,7 @@ def preprocess():
     
     df[norm_cols] = norm_scalar.transform(df[norm_cols])
 
-    df.to_csv('dataset.csv')
+    df.to_csv('dataset.csv', index=False)
 
 if __name__=='__main__':
 

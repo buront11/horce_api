@@ -55,19 +55,19 @@ class HorceDateCollecter():
         # 前回のデータとの差分をとって最新のデータのみ持ってくる
         self.dt_today = datetime.utcnow().date()
 
-        try:
-            self.race_df = pd.read_csv('race_data.csv')
-        except:
-            self.race_df = pd.DataFrame(columns=["着順","枠番","馬番","馬名","性齢","斤量","騎手",\
-                                                "タイム","着差","単勝","人気","馬体重","調教師",\
-                                                "race_id","horse_id","jockey_id","trainer_id"])
+        # try:
+        #     self.race_df = pd.read_csv('race_data.csv')
+        # except:
+        self.race_df = pd.DataFrame(columns=["着順","枠番","馬番","馬名","性齢","斤量","騎手",\
+                                            "タイム","着差","単勝","人気","馬体重","調教師",\
+                                            "race_id","horse_id","jockey_id","trainer_id"])
 
-        try:
-            self.horse_df = pd.read_csv('horse_data.csv')
-        except:
-            self.horse_df = pd.DataFrame(columns=['日付','開催','天気','R','レース名','映像','頭数','枠番','馬番','オッズ','人気',
-                                                '着順','騎手','斤量','距離','馬場','馬場指数','タイム','着差','ﾀｲﾑ指数','通過','ペース',
-                                                '上り','馬体重','厩舎ｺﾒﾝﾄ','備考','勝ち馬(2着馬)','賞金','horse_id','race_id','jockey_id'])
+        # try:
+        #     self.horse_df = pd.read_csv('horse_data.csv')
+        # except:
+        self.horse_df = pd.DataFrame(columns=['日付','開催','天気','R','レース名','映像','頭数','枠番','馬番','オッズ','人気',
+                                            '着順','騎手','斤量','距離','馬場','馬場指数','タイム','着差','ﾀｲﾑ指数','通過','ペース',
+                                            '上り','馬体重','厩舎ｺﾒﾝﾄ','備考','勝ち馬(2着馬)','賞金','horse_id','race_id','jockey_id'])
 
     def get_race_data(self):
         for date in date_range(self.start_date, self.dt_today):
@@ -176,7 +176,7 @@ class HorceDateCollecter():
         # 馬の情報の取得
         for index in tqdm(range(len(horse_ids))):
             print('get {} datas ...'.format(horse_ids[index]))
-
+            
             url = 'https://db.netkeiba.com/horse/' + str(horse_ids[index])
 
             res = requests.get(url)
@@ -202,11 +202,18 @@ class HorceDateCollecter():
                 # 処理方法は後で考える
                 id = re.search(r'[0-9]+', info.get('href')).group()
 
+                # 逆にジョッキーにリンクがないものが存在する
                 # 同じレース名がある場合に不具合が発生する
-                if info_type not in info_dicts.keys():
-                    info_dicts.update({info_type:[id]})
+                if info_type == 'jockey':
+                    if info_type not in info_dicts.keys():
+                        info_dicts.update({info_type:{name:id}})
+                    else:
+                        info_dicts[info_type].update({name:id})
                 else:
-                    info_dicts[info_type].append(id)
+                    if info_type not in info_dicts.keys():
+                        info_dicts.update({info_type:[id]})
+                    else:
+                        info_dicts[info_type].append(id)
 
             for info_type, values in info_dicts.items():
                 if info_type == "race":
@@ -215,8 +222,21 @@ class HorceDateCollecter():
                     column = "騎手"
                 else:
                     continue
-                # dfにidを新しい列として追加する
-                df_horses[f'{info_type}_id'] = values
+
+                # ジョッキーにリンクがない人がいたので特殊な処理をする
+                if info_type == 'jockey':
+                    add_list = []
+                    for row in df_horses[column]:
+                        # idと名前を照合し、リストに追加
+                        if row in values.keys():
+                            add_list.append(values[row])
+                        else:
+                            add_list.append(np.NaN)
+                    # dfにidを新しい列として追加する
+                    df_horses[f'{info_type}_id'] = add_list
+                else:
+                    # dfにidを新しい列として追加する
+                    df_horses[f'{info_type}_id'] = values
 
             df_horses['horse_id'] = horse_ids[index]
 
