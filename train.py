@@ -8,6 +8,7 @@ from dgl.data import CoraGraphDataset
 from dgl.dataloading import GraphDataLoader
 
 from tqdm import tqdm
+from sklearn.model_selection import train_test_split
 
 from models import GCNClassifier, NodeClassifier, Classifier
 from dataset import GCNDataset
@@ -149,13 +150,17 @@ def main():
     else:
         device = 'cpu'
 
-    dataset = GCNDataset(nn_type='nn')
+    device = 'cpu'
 
-    model = Classifier(in_feats=49)
+    dataset = GCNDataset(nn_type='graph')
+
+    train_dataset, valid_dataset = train_test_split(dataset, train_size=0.9)
+
+    model = GCNClassifier()
     optimizer = optim.Adam(model.parameters(), lr=0.001)
     criterion = nn.CrossEntropyLoss()
 
-    nn_train(dataset, model, criterion, optimizer, batch_size=64, epochs=300, device=device)
+    train(train_dataset, model, criterion, optimizer, batch_size=16, epochs=300, device=device)
 
 if __name__ == '__main__':
     main()

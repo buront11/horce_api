@@ -6,7 +6,7 @@ import torch.nn.functional as F
 # TODO ノード分類で試してみる
 class GCNClassifier(nn.Module):
     # 馬の最大頭数は18頭なので分類は18classとする
-    def __init__(self, in_feat=48, hidden_feat=256, n_classifier=18):
+    def __init__(self, in_feat=44, hidden_feat=256, n_classifier=18):
         super(GCNClassifier, self).__init__()
         self.conv1 = dglnn.GraphConv(in_feat, hidden_feat)
         self.conv2 = dglnn.GraphConv(hidden_feat, hidden_feat)

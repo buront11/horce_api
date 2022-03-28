@@ -223,6 +223,7 @@ def preprocess():
     df = ce_ohe.transform(df)
 
     # カーディナリティが高い変数をordinaly encode
+    # TODO 現状これらの値を使うと学習がうまくいかないため、何かしらの別の形に変える
     ce_oe = ce.OrdinalEncoder(cols=oe_cols, handle_unknown='impute')
     ce_oe.fit(df)
 

@@ -15,8 +15,9 @@ class GCNDataset(Dataset):
 
         self.datas = []
         self.labels = []
+        self.nn_type = nn_type
 
-        if nn_type == 'graph':
+        if self.nn_type == 'graph' or self.nn_type == 'node':
         # グラフに変換
         # TODO いつかレース情報を別のノードとする
             for race_id in df['race_id'].unique():
@@ -24,26 +25,31 @@ class GCNDataset(Dataset):
 
                 race_df = race_df.sort_values('horse_num').reset_index(drop=True)
 
-                graph = nx.cycle_graph(len(race_df))
+                graph = nx.complete_graph(len(race_df))
 
                 # TODO horse_numberをdropするかいなかを試す
-                for index, row in enumerate(race_df.drop(['ranking', 'horse_num'], axis=1).values.tolist()):
+                for index, row in enumerate(race_df.drop(['ranking','horse_num','race_id','horse_id','jockey_id','trainer_id'], axis=1).values.tolist()):
                     graph.nodes[index]['feat'] = row
 
-                for index, row in enumerate(race_df['ranking'].values.tolist()):
-                    if row == 1:
-                        graph.nodes[index]['label'] = 1
-                    else:
-                        graph.nodes[index]['label'] = 0
+                if self.nn_type=='node':
+                    for index, row in enumerate(race_df['ranking'].values.tolist()):
+                        if row == 1:
+                            graph.nodes[index]['label'] = 1
+                        else:
+                            graph.nodes[index]['label'] = 0
 
-                dgl_graph = dgl.from_networkx(graph, node_attrs=['feat','label'], device='cpu')
+                    dgl_graph = dgl.from_networkx(graph, node_attrs=['feat','label'], device='cpu')
+                else:
+                    label = race_df[race_df['ranking'] == 1].index[0]
+                    self.labels.append(label)
 
-                label = race_df[race_df['ranking'] == 1].index[0]
+                    dgl_graph = dgl.from_networkx(graph, node_attrs=['feat'], device='cpu')
 
                 self.datas.append(dgl_graph)
-                # self.labels.append(label)
+
         else:
-            for row in df.drop(columns=['ranking']).values.tolist():
+            # TODO 現状IDを特徴量として使うと学習がうまくいかなくなる問題がある
+            for row in df.drop(columns=['ranking','race_id','horse_id','jockey_id','trainer_id']).values.tolist():
                 self.datas.append(row)
 
             for row in df['ranking'].values.tolist():
@@ -56,10 +62,16 @@ class GCNDataset(Dataset):
         return len(self.datas)
 
     def __getitem__(self, index):
-        out_data = torch.tensor(self.datas[index])
-        out_label = torch.tensor(self.labels[index])
+        if self.nn_type=='node':
+            out_data = torch.tensor(self.datas[index])
 
-        return out_data, out_label
+            return out_data
+        else:
+            out_data = self.datas[index]
+            out_label = torch.tensor(self.labels[index])
+
+            return out_data, out_label
+
 
 if __name__ == '__main__':
     GCNDataset(nn_type='nn')
