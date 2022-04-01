@@ -50,7 +50,7 @@ class HorceDateCollecter():
                 self.start_date = datetime.strptime(f.read(), '%Y-%m-%d').date()
         except FileNotFoundError:
             # 前回のデータがない場合は2008年1月1日からスクレイピング
-            self.start_date = datetime(2020, 1, 1).date()
+            self.start_date = datetime(2012, 1, 1).date()
             
         # 前回のデータとの差分をとって最新のデータのみ持ってくる
         self.dt_today = datetime.utcnow().date()
@@ -357,7 +357,7 @@ def main(args):
 
     horce_collect = HorceDateCollecter()
 
-    # horce_collect.get_race_data()
+    horce_collect.get_race_data()
 
     horce_collect.get_horse_date()
 

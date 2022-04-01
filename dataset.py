@@ -9,9 +9,9 @@ import dgl
 from preprocess import preprocess
 
 class GCNDataset(Dataset):
-    def __init__(self, nn_type='graph') -> None:
+    def __init__(self, nn_type='graph', csv_path='dataset.csv') -> None:
         super(GCNDataset, self).__init__()
-        df = pd.read_csv('dataset.csv')
+        df = pd.read_csv(csv_path)
 
         self.datas = []
         self.labels = []
@@ -22,6 +22,10 @@ class GCNDataset(Dataset):
         # TODO いつかレース情報を別のノードとする
             for race_id in df['race_id'].unique():
                 race_df = df[df['race_id'] == race_id]
+
+                # レースの頭数が4頭以下となった場合はデータとして扱わない
+                if len(race_df) <= 4:
+                    continue
 
                 race_df = race_df.sort_values('horse_num').reset_index(drop=True)
 
@@ -40,8 +44,11 @@ class GCNDataset(Dataset):
 
                     dgl_graph = dgl.from_networkx(graph, node_attrs=['feat','label'], device='cpu')
                 else:
-                    label = race_df[race_df['ranking'] == 1].index[0]
-                    self.labels.append(label)
+                    try:
+                        label = race_df[race_df['ranking'] == 1].index[0]
+                        self.labels.append(label)
+                    except:
+                        continue
 
                     dgl_graph = dgl.from_networkx(graph, node_attrs=['feat'], device='cpu')
 

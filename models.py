@@ -6,16 +6,16 @@ import torch.nn.functional as F
 # TODO ノード分類で試してみる
 class GCNClassifier(nn.Module):
     # 馬の最大頭数は18頭なので分類は18classとする
-    def __init__(self, in_feat=44, hidden_feat=256, n_classifier=18):
+    def __init__(self, in_feat=46, hidden_feat=256, n_classifier=18):
         super(GCNClassifier, self).__init__()
-        self.conv1 = dglnn.GraphConv(in_feat, hidden_feat)
-        self.conv2 = dglnn.GraphConv(hidden_feat, hidden_feat)
+        self.conv1 = dglnn.SAGEConv(in_feat, hidden_feat, aggregator_type='mean')
+        self.conv2 = dglnn.SAGEConv(hidden_feat, hidden_feat, aggregator_type='mean')
         self.fc1 = nn.Linear(hidden_feat, n_classifier)
 
     def forward(self, g, h):
         # Apply graph convolution and activation.
-        h = F.relu(self.conv1(g, h))
-        h = F.relu(self.conv2(g, h))
+        h = F.leaky_relu(self.conv1(g, h))
+        h = F.leaky_relu(self.conv2(g, h))
         with g.local_scope():
             g.ndata['h'] = h
             # Calculate graph representation by average readout.

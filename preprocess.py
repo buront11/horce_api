@@ -6,6 +6,7 @@ import pandas as pd
 
 import category_encoders as ce
 from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split
 
 def ranking_category2num(ranking):
     """降格などを含む順位を数値へと変換するmethod
@@ -102,16 +103,23 @@ def split_horse_weight(df):
     horse_weights = []
     delta_weights = []
     for row in df['horse_weight']:
-        delta_weights.append(int(re.search(r'(?<=\().+?(?=\))', row).group()))
-        horse_weights.append(int(re.sub(r'\(.+\)', '', row)))
+        if row == '計不':
+            delta_weights.append(57)
+            horse_weights.append(0)
+        else:
+            delta_weights.append(int(re.search(r'(?<=\().+?(?=\))', row).group()))
+            horse_weights.append(int(re.sub(r'\(.+\)', '', row)))
 
     df['horse_weight'] = horse_weights
     df['delta_weight'] = delta_weights
 
     return df
 
-def horse_process():
-    df = pd.read_csv('horse_data.csv')
+def horse_process(crawling_df=None):
+    if crawling_df is None:
+        df = pd.read_csv('horse_data.csv')
+    else:
+        df = crawling_df
 
     # 列名を英語に変換
     df = df.rename(columns={'日付':'day','開催':'hold','天気':'weather', 'R':'round',
@@ -131,7 +139,8 @@ def horse_process():
     df = df[(df['starters_num'] <= 18) & (df['starters_num'] >= 4)]
 
     # 取り消しや中止などの出走しなかったレースの情報を削除
-    df = df[df['ranking'].str.match(r'[0-9]+', na=False)]
+    # intの場合一緒に省かれてしまうためstr変換
+    df = df[df['ranking'].astype(str).str.match(r'[0-9]+', na=False)]
 
     # nan値は賞金を獲得できていないため0でfillする
     df = df.fillna({'winning':0})
@@ -158,31 +167,62 @@ def horse_process():
                         'weight', 'meter', 'state', 'time', 'arrival_diff','passing', 'pace', 
                         '3f', 'horse_weight','second', 'winning'])
 
-    df.to_csv('preprocessed_horse.csv', index=False)
+    if crawling_df is None:
+        df.to_csv('preprocessed_horse.csv', index=False)
+    else:
+        # 実際のレースの場合は持ってくるのは最新の情報だけ
+        df = df.drop_duplicates(subset='horse_id',keep='first')
+        return df
 
-def race_process():
-    df = pd.read_csv('race_data.csv')
+def race_process(crawling_df=None):
+    if crawling_df is None:
+        # データセット用の前処理
+        df = pd.read_csv('race_data.csv')
 
-    df = df.rename(columns={'着順':'ranking', '枠番':'flame', '馬番':'horse_num',\
-            '馬名':'horse_name','性齢':'sex_old', '斤量':'weight', '騎手':'jockey', 'タイム':'time',\
-            '着差':'arrival_diff', '単勝':'odds', '人気':'popularity','馬体重':'horse_weight', '調教師':'trainer'})
+        df = df.rename(columns={'着順':'ranking', '枠番':'flame', '馬番':'horse_num',\
+                '馬名':'horse_name','性齢':'sex_old', '斤量':'weight', '騎手':'jockey', 'タイム':'time',\
+                '着差':'arrival_diff', '単勝':'odds', '人気':'popularity','馬体重':'horse_weight', '調教師':'trainer'})
 
-    # 出走しなかったレースを削除
-    df = df[df['ranking'].str.match(r'[0-9]+', na=False)]
+        # 出走しなかったレースを削除
+        df = df[df['ranking'].str.match(r'[0-9]+', na=False)]
 
-    # 順位を数字に変換
-    df['ranking'] = df['ranking'].apply(lambda x: ranking_category2num(x))
+        # 順位を数字に変換
+        df['ranking'] = df['ranking'].apply(lambda x: ranking_category2num(x))
 
-    # 性齢を分割
-    df = split_sex_old(df)
+        # 性齢を分割
+        df = split_sex_old(df)
 
-    # 馬体重を変化量と数値に分割
-    df = split_horse_weight(df)
+        # 馬体重を変化量と数値に分割
+        df = split_horse_weight(df)
 
-    # 変換済みの列を削除
-    df = df.drop(columns=['sex_old'])
+        # 変換済みの列を削除
+        df = df.drop(columns=['sex_old'])
 
-    df.to_csv('preprocessed_race.csv', index=False)
+        df.to_csv('preprocessed_race.csv', index=False)
+    else:
+        # 実際の試合のデータ用の前処理
+        df = crawling_df
+
+        df = df.rename(columns={'枠':'flame', '馬番':'horse_num','印':'stamp','厩舎':'stable',\
+                '馬名':'horse_name','性齢':'sex_old', '斤量':'weight', '騎手':'jockey',\
+                'オッズ':'odds', '人気':'popularity','馬体重(増減)':'horse_weight'})
+
+        # 不必要なため取り除く列
+        drop_cols = ['stamp', 'stable', '登録', 'メモ']
+
+        df = df.drop(columns=drop_cols)
+
+        # 性齢を分割
+        df = split_sex_old(df)
+
+        # 馬体重を変化量と数値に分割
+        df = split_horse_weight(df)
+
+        # 変換済みの列を削除
+        df = df.drop(columns=['sex_old'])
+
+        return df
+
 
 def merge_horse_race():
     horse_df = pd.read_csv('preprocessed_horse.csv')
@@ -193,6 +233,8 @@ def merge_horse_race():
     return df
 
 def preprocess():
+    """学習用のデータセット用の前処理
+    """
     horse_process()
 
     race_process()
@@ -236,6 +278,56 @@ def preprocess():
     df[norm_cols] = norm_scalar.transform(df[norm_cols])
 
     df.to_csv('dataset.csv', index=False)
+    
+    train_df, test_df = train_test_split(df, train_size=0.9)
+    train_df.to_csv('train_dataset.csv', index=False)
+    test_df.to_csv('test_dataset.csv', index=False)
+
+def api_preprocess(race_df, horse_df):
+
+    race_df = race_process(race_df)
+    horse_df = horse_process(horse_df)
+
+    df = pd.merge(race_df, horse_df, on=['horse_id'], how='inner')
+
+    # 不必要なため取り除く列
+    drop_cols = ['horse_name','jockey','starters_num','start_time']
+
+    df = df.drop(columns=drop_cols)
+
+    df = df.reindex(columns=['flame', 'horse_num','weight', 
+       'odds', 'popularity', 'horse_weight','race_id','horse_id','jockey_id', 
+       'race_grade', 'race_type', 
+       'wise','meter', 'weather', 'race_state', 'sex', 'old',
+       'delta_weight', 'meter_apt','run_style', 'total_winning'])
+
+    dataset_df = merge_horse_race()
+
+    drop_cols = ['ranking','horse_name','jockey','starters_num','start_time', 'trainer_id',
+                'time','arrival_diff','trainer']
+
+    dataset_df = dataset_df.drop(columns=drop_cols)
+
+    # onehot encodeする列
+    ohe_cols = ['race_type', 'wise', 'weather', 'race_state', 'sex' ,'race_grade']
+
+    # 標準化する列
+    norm_cols = ['flame','weight','odds','popularity','horse_weight','meter',\
+                'old','delta_weight','meter_apt','run_style','total_winning']
+
+    # fit&transform
+    # 質的変数をonehotに変換
+    ce_ohe = ce.OneHotEncoder(cols=ohe_cols, handle_unknown='impute')
+    ce_ohe.fit(dataset_df)
+
+    df = ce_ohe.transform(df)
+
+    # いくつかの数値データの標準化
+    norm_scalar = StandardScaler()
+    norm_scalar.fit(df[norm_cols])
+    
+    df[norm_cols] = norm_scalar.transform(df[norm_cols])
+    return df
 
 if __name__=='__main__':
 
