@@ -104,10 +104,14 @@ def split_horse_weight(df):
     delta_weights = []
     for row in df['horse_weight']:
         if row == '計不':
-            delta_weights.append(57)
-            horse_weights.append(0)
+            horse_weights.append(480)
+            delta_weights.append(0)
         else:
-            delta_weights.append(int(re.search(r'(?<=\().+?(?=\))', row).group()))
+            try:
+                # 前計不の場合の処理
+                delta_weights.append(int(re.search(r'(?<=\().+?(?=\))', row).group()))
+            except:
+                delta_weights.append(0)
             horse_weights.append(int(re.sub(r'\(.+\)', '', row)))
 
     df['horse_weight'] = horse_weights
@@ -205,7 +209,7 @@ def race_process(crawling_df=None):
 
         df = df.rename(columns={'枠':'flame', '馬番':'horse_num','印':'stamp','厩舎':'stable',\
                 '馬名':'horse_name','性齢':'sex_old', '斤量':'weight', '騎手':'jockey',\
-                'オッズ':'odds', '人気':'popularity','馬体重(増減)':'horse_weight'})
+                'オッズ':'odds', '人気':'popularity','馬体重(増減)':'horse_weight','オッズ 更新':'odds',})
 
         # 不必要なため取り除く列
         drop_cols = ['stamp', 'stable', '登録', 'メモ']
@@ -279,7 +283,7 @@ def preprocess():
 
     df.to_csv('dataset.csv', index=False)
     
-    train_df, test_df = train_test_split(df, train_size=0.9)
+    train_df, test_df = train_test_split(df, train_size=0.9, random_state=123)
     train_df.to_csv('train_dataset.csv', index=False)
     test_df.to_csv('test_dataset.csv', index=False)
 

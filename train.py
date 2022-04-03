@@ -8,6 +8,7 @@ from dgl.data import CoraGraphDataset
 from dgl.dataloading import GraphDataLoader
 
 from tqdm import tqdm
+import numpy as np
 from sklearn.model_selection import train_test_split, KFold
 
 from models import GCNClassifier, NodeClassifier, Classifier
@@ -132,14 +133,20 @@ def predict_race(dataset, device='cpu'):
         feats = dataset.ndata['feat'].to(device)
         outputs = model(dataset, feats)
 
-        print(outputs)
-
         _, predicted = torch.max(outputs.data, 1)
-        print(predicted)
+
+        prob = outputs.data[0]
+
+        sort_pred = list(np.sort(prob))[::-1]
+        sort_index = list(np.argsort(prob))[::-1]
+
+        for pred, index in zip(sort_pred, sort_index):
+            print(f'{index+1}番 : {pred}')
+
 
 def eval(dataset, device='cpu'):
     model = GCNClassifier()
-    model.load_state_dict(torch.load('data/weight', map_location=torch.device('cpu')))
+    model.load_state_dict(torch.load('data/weight', map_location=torch.device(device)))
 
     dataloader = GraphDataLoader(dataset, batch_size=1, shuffle=True, drop_last=True)
 
@@ -152,10 +159,17 @@ def eval(dataset, device='cpu'):
 
             label = label.to(device)
 
+            prob = outputs.data[0]
+
+            sort_pred = list(np.sort(prob))[::-1]
+            sort_index = list(np.argsort(prob))[::-1]
+
             _, predicted = torch.max(outputs.data, 1)
-            
+
             total += label.size(0)
-            correct += (predicted == label).sum().item()
+            # 上位3位に予想した馬が入っていたら正解とする
+            if label.item() in sort_index[:3]:
+                correct += 1
         print('accuracy: {}%'.format(correct/total*100))
 
 
@@ -180,7 +194,6 @@ def node_train(dataset, model, criterion, optim, batch_size, epochs, device):
             feats = batched_graph.ndata['feat'].to(device)
             labels = batched_graph.ndata['label'].to(device)
             outputs = model(batched_graph, feats)
-            print(outputs)
 
             loss = criterion(outputs, labels)
 
@@ -201,6 +214,29 @@ def node_train(dataset, model, criterion, optim, batch_size, epochs, device):
         if min_loss >= running_loss:
             model_path = './data/weight'
             torch.save(model.state_dict(), model_path)
+
+def node_eval(dataset, device='cpu'):
+    model = GCNClassifier()
+    model.load_state_dict(torch.load('data/weight', map_location=torch.device('cpu')))
+
+    dataloader = GraphDataLoader(dataset, batch_size=1, shuffle=True, drop_last=True)
+
+    with torch.no_grad():
+        total = 0
+        correct = 0
+        for batched_graph in dataloader:
+            optim.zero_grad()
+
+            feats = batched_graph.ndata['feat'].to(device)
+            labels = batched_graph.ndata['label'].to(device)
+            outputs = model(batched_graph, feats)
+
+            _, predicted = torch.max(outputs.data, 1)
+
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+
+        print('eval accuracy: {}%'.format(correct/total*100))
 
 def nn_train(dataset, model, criterion, optim, batch_size, epochs, device):
     dataloader = DataLoader(dataset, batch_size=batch_size, drop_last=True, shuffle=True)
@@ -252,17 +288,15 @@ def main():
     else:
         device = 'cpu'
 
-    device = 'cpu'
-
-    train_dataset = GCNDataset(nn_type='graph', csv_path='train_dataset.csv')
-    test_dataset = GCNDataset(nn_type='graph', csv_path='test_dataset.csv')
+    # train_dataset = GCNDataset(device, nn_type='graph', csv_path='train_dataset.csv')
+    test_dataset = GCNDataset(device='cpu', nn_type='graph', csv_path='test_dataset.csv')
 
     model = GCNClassifier()
     optimizer = optim.Adam(model.parameters(), lr=0.001)
     criterion = nn.CrossEntropyLoss()
 
-    train(train_dataset, model, criterion, optimizer, batch_size=32, epochs=100, device=device)
-    eval(test_dataset, device)
+    # train(train_dataset, model, criterion, optimizer, batch_size=32, epochs=100, device=device)
+    eval(test_dataset)
 
 if __name__ == '__main__':
     main()

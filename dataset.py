@@ -9,7 +9,7 @@ import dgl
 from preprocess import preprocess
 
 class GCNDataset(Dataset):
-    def __init__(self, nn_type='graph', csv_path='dataset.csv') -> None:
+    def __init__(self, device, nn_type='graph', csv_path='dataset.csv') -> None:
         super(GCNDataset, self).__init__()
         df = pd.read_csv(csv_path)
 
@@ -37,12 +37,12 @@ class GCNDataset(Dataset):
 
                 if self.nn_type=='node':
                     for index, row in enumerate(race_df['ranking'].values.tolist()):
-                        if row == 1:
+                        if row == 1 or row==2 or row==3:
                             graph.nodes[index]['label'] = 1
                         else:
                             graph.nodes[index]['label'] = 0
 
-                    dgl_graph = dgl.from_networkx(graph, node_attrs=['feat','label'], device='cpu')
+                    dgl_graph = dgl.from_networkx(graph, node_attrs=['feat','label'], device=device)
                 else:
                     try:
                         label = race_df[race_df['ranking'] == 1].index[0]
@@ -50,7 +50,7 @@ class GCNDataset(Dataset):
                     except:
                         continue
 
-                    dgl_graph = dgl.from_networkx(graph, node_attrs=['feat'], device='cpu')
+                    dgl_graph = dgl.from_networkx(graph, node_attrs=['feat'], device=device)
 
                 self.datas.append(dgl_graph)
 

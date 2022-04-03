@@ -114,7 +114,7 @@ def main():
     chrome_service = webdriver.chrome.service.Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=chrome_service, options=options)
 
-    url = 'https://race.netkeiba.com/race/shutuba.html?race_id=202209020211&rf=race_submenu'
+    url = 'https://race.netkeiba.com/race/shutuba.html?race_id=202209020411&rf=race_list'
 
     driver.get(url)
 
@@ -169,7 +169,6 @@ def main():
     race_df['start_time'] = start_time
 
     df = api_preprocess(race_df, horse_df)
-    print(df)
 
     graph = df2graph(df)
 
