@@ -9,18 +9,28 @@ class GCNClassifier(nn.Module):
     def __init__(self, in_feat=67, hidden_feat=256, n_classifier=18):
         super(GCNClassifier, self).__init__()
         self.conv1 = dglnn.SAGEConv(in_feat, hidden_feat, aggregator_type='mean')
-        self.conv2 = dglnn.SAGEConv(hidden_feat, hidden_feat, aggregator_type='mean')
-        self.fc1 = nn.Linear(hidden_feat, n_classifier)
+        self.conv2 = dglnn.SAGEConv(hidden_feat, 512, aggregator_type='mean')
+        self.conv3 = dglnn.SAGEConv(512, 1024, aggregator_type='mean')
+        self.fc1 = nn.Linear(1024, 4096)
+        self.fc2 = nn.Linear(4096, 4096)
+        self.fc3 = nn.Linear(4096, n_classifier)
+
+        self.dropout = nn.Dropout()
 
     def forward(self, g, h):
         # Apply graph convolution and activation.
         h = F.leaky_relu(self.conv1(g, h))
         h = F.leaky_relu(self.conv2(g, h))
+        h = F.leaky_relu(self.conv3(g, h))
+        h = self.dropout(h)
         with g.local_scope():
             g.ndata['h'] = h
             # Calculate graph representation by average readout.
             hg = dgl.mean_nodes(g, 'h')
-            x = self.fc1(hg)
+            x = F.leaky_relu(self.fc1(hg))
+            x = self.dropout(x)
+            x = F.leaky_relu(self.fc2(x))
+            x = self.fc3(x)
             return x
 
 class NodeClassifier(nn.Module):
