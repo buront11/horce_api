@@ -9,7 +9,7 @@ import dgl
 from preprocess import preprocess
 
 class GCNDataset(Dataset):
-    def __init__(self, device, nn_type='graph', csv_path='dataset.csv') -> None:
+    def __init__(self, device, pred_rank=1,nn_type='graph', csv_path='dataset.csv') -> None:
         super(GCNDataset, self).__init__()
         df = pd.read_csv(csv_path)
 
@@ -44,8 +44,9 @@ class GCNDataset(Dataset):
 
                     dgl_graph = dgl.from_networkx(graph, node_attrs=['feat','label'], device=device)
                 else:
+                    # 一位の情報が前処理によって消されたデータは削除する
                     try:
-                        label = race_df[race_df['ranking'] == 1].index[0]
+                        label = race_df[race_df['ranking'] == int(pred_rank)].index[0]
                         self.labels.append(label)
                     except:
                         continue

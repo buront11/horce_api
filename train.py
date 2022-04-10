@@ -57,7 +57,7 @@ def _train(dataset, model, criterion, optim, batch_size, epochs, device):
             model_path = './data/weight'
             torch.save(model.state_dict(), model_path)
 
-def train(dataset, model, criterion, optim, batch_size, epochs, device, n_splits=5):
+def train(dataset, model, criterion, optim, batch_size, epochs, device, pred_rank,n_splits=5):
     kf = KFold(n_splits=n_splits)
     model = model.to(device)
     criterion = criterion
@@ -122,12 +122,12 @@ def train(dataset, model, criterion, optim, batch_size, epochs, device, n_splits
         print('valid accuracy :{} %'.format(valid_correct/valid_total*100))
 
         if min_loss >= valid_loss:
-            model_path = './data/weight'
+            model_path = f'./data/weight_rank_{pred_rank}'
             torch.save(model.state_dict(), model_path)
 
-def predict_race(dataset, device='cpu'):
+def predict_race(dataset, weight ,device='cpu'):
     model = GCNClassifier()
-    model.load_state_dict(torch.load('data/weight', map_location=torch.device('cpu')))
+    model.load_state_dict(torch.load(f'data/{weight}', map_location=torch.device('cpu')))
 
     with torch.no_grad():
         feats = dataset.ndata['feat'].to(device)
@@ -140,13 +140,13 @@ def predict_race(dataset, device='cpu'):
         sort_pred = list(np.sort(prob))[::-1]
         sort_index = list(np.argsort(prob))[::-1]
 
-        for pred, index in zip(sort_pred, sort_index):
+        for pred, index in zip(sort_pred[:5], sort_index[:5]):
             print(f'{index+1}番 : {pred}')
 
 
-def eval(dataset, device='cpu'):
+def eval(dataset, pred_rank, device='cpu'):
     model = GCNClassifier()
-    model.load_state_dict(torch.load('data/weight', map_location=torch.device(device)))
+    model.load_state_dict(torch.load(f'./data/weight_rank_{pred_rank}', map_location=torch.device(device)))
 
     dataloader = GraphDataLoader(dataset, batch_size=1, shuffle=True, drop_last=True)
 
@@ -281,22 +281,30 @@ def nn_train(dataset, model, criterion, optim, batch_size, epochs, device):
             model_path = './data/weight'
             torch.save(model.state_dict(), model_path)
 
-def main():
+def main(args):
+    pred_rank = args.pred_rank
 
     if torch.cuda.is_available():
         device = 'cuda'
     else:
         device = 'cpu'
 
-    # train_dataset = GCNDataset(device, nn_type='graph', csv_path='train_dataset.csv')
-    test_dataset = GCNDataset(device='cpu', nn_type='graph', csv_path='test_dataset.csv')
+    train_dataset = GCNDataset(device, pred_rank=pred_rank,nn_type='graph', csv_path='train_dataset.csv')
+    test_dataset = GCNDataset(device='cpu', pred_rank=pred_rank, nn_type='graph', csv_path='test_dataset.csv')
 
     model = GCNClassifier()
     optimizer = optim.Adam(model.parameters(), lr=0.001)
     criterion = nn.CrossEntropyLoss()
 
-    # train(train_dataset, model, criterion, optimizer, batch_size=32, epochs=100, device=device)
-    eval(test_dataset)
+    train(train_dataset, model, criterion, optimizer, batch_size=32, epochs=100, device=device, pred_rank=pred_rank)
+    eval(test_dataset, pred_rank=pred_rank)
 
 if __name__ == '__main__':
-    main()
+    import argparse
+
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument('--pred_rank', '-r', default=1)
+
+    args = parser.parse_args()
+    main(args)

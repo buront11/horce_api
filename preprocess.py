@@ -119,6 +119,30 @@ def split_horse_weight(df):
 
     return df
 
+def jockey_freq(df,top_num=20):
+    """jockey_idを重賞の出場頻度上位n人のみに変換する関数
+
+    Parameters
+    ----------
+    df : pandas.df
+        レース情報のデータフレーム
+    top_num : int
+        出場頻度上位何人までにするか
+    """
+    dataset_df = pd.read_csv('race_data.csv')
+    freq_list = list(dataset_df[dataset_df['race_grade'] != 'other'].loc[:, 'jockey_id'].value_counts().index[:top_num])
+
+    jockey_freqs = []
+    for row in df['jockey_id']:
+        if row in freq_list:
+            jockey_freqs.append(int(row))
+        else:
+            jockey_freqs.append(-1)
+
+    df['jockey_freq'] = jockey_freqs
+
+    return df
+
 def horse_process(crawling_df=None):
     if crawling_df is None:
         df = pd.read_csv('horse_data.csv')
@@ -193,6 +217,9 @@ def race_process(crawling_df=None):
         # 順位を数字に変換
         df['ranking'] = df['ranking'].apply(lambda x: ranking_category2num(x))
 
+        # jockeyを頻度が高いもののみのデータを使用する
+        df = jockey_freq(df)
+
         # 性齢を分割
         df = split_sex_old(df)
 
@@ -215,6 +242,9 @@ def race_process(crawling_df=None):
         drop_cols = ['stamp', 'stable', '登録', 'メモ']
 
         df = df.drop(columns=drop_cols)
+
+        # jockeyを頻度が高いもののみのデータを使用する
+        df = jockey_freq(df)
 
         # 性齢を分割
         df = split_sex_old(df)
@@ -239,9 +269,9 @@ def merge_horse_race():
 def preprocess():
     """学習用のデータセット用の前処理
     """
-    horse_process()
-
     race_process()
+
+    horse_process()
 
     df = merge_horse_race()
 
@@ -251,7 +281,7 @@ def preprocess():
     df = df.drop(columns=drop_cols)
 
     # onehot encodeする列
-    ohe_cols = ['race_type', 'wise', 'weather', 'race_state', 'sex' ,'race_grade']
+    ohe_cols = ['race_type', 'wise', 'weather', 'race_state', 'sex' ,'race_grade', 'jockey_freq']
 
     # ordinalry encodeする列
     # id値は特に種類が多い+もとのidを使うと差が大きくなりそう
@@ -302,7 +332,7 @@ def api_preprocess(race_df, horse_df):
     df = df.reindex(columns=['flame', 'horse_num','weight', 
        'odds', 'popularity', 'horse_weight','race_id','horse_id','jockey_id', 
        'race_grade', 'race_type', 
-       'wise','meter', 'weather', 'race_state', 'sex', 'old',
+       'wise','meter', 'weather', 'race_state', 'jockey_freq','sex', 'old',
        'delta_weight', 'meter_apt','run_style', 'total_winning'])
 
     dataset_df = merge_horse_race()
@@ -313,7 +343,7 @@ def api_preprocess(race_df, horse_df):
     dataset_df = dataset_df.drop(columns=drop_cols)
 
     # onehot encodeする列
-    ohe_cols = ['race_type', 'wise', 'weather', 'race_state', 'sex' ,'race_grade']
+    ohe_cols = ['race_type', 'wise', 'weather', 'race_state', 'sex' ,'race_grade', 'jockey_freq']
 
     # 標準化する列
     norm_cols = ['flame','weight','odds','popularity','horse_weight','meter',\

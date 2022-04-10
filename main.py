@@ -15,7 +15,7 @@ from preprocess import api_preprocess
 from dataset import GCNDataset
 from train import predict_race
 
-def get_horse_date(horse_ids):
+def get_horse_data(horse_ids):
     horse_df = pd.DataFrame(columns=['日付','開催','天気','R','レース名','映像','頭数','枠番','馬番','オッズ','人気',
                                     '着順','騎手','斤量','距離','馬場','馬場指数','タイム','着差','ﾀｲﾑ指数','通過','ペース',
                                     '上り','馬体重','厩舎ｺﾒﾝﾄ','備考','勝ち馬(2着馬)','賞金','horse_id','race_id','jockey_id'])
@@ -104,7 +104,7 @@ def df2graph(df):
 
     return dgl_graph
 
-def main():
+def main(args):
 
     options = webdriver.ChromeOptions()
 
@@ -114,7 +114,7 @@ def main():
     chrome_service = webdriver.chrome.service.Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=chrome_service, options=options)
 
-    url = 'https://race.netkeiba.com/race/shutuba.html?race_id=202209020411&rf=race_list'
+    url = 'https://race.netkeiba.com/race/shutuba.html?race_id=202207020211&rf=race_submenu'
 
     driver.get(url)
 
@@ -130,10 +130,16 @@ def main():
 
     horse_ids = []
     info_ids = soup.select('td.HorseInfo a')
+    jockey_ids = []
+    jockey_id = soup.select('td.Jockey a')
 
     for info in info_ids:
         id = re.search(r'[0-9]+', info.get('href')).group()
         horse_ids.append(id)
+
+    for info in jockey_id:
+        id = re.search(r'[0-9]+', info.get('href')).group()
+        jockey_ids.append(int(id))
 
     race_info = soup.select('div.RaceData01')
     race_infos = re.sub(r' ','',race_info[0].get_text()).split('/')
@@ -157,9 +163,10 @@ def main():
     else:
         race_grade = 'G' + re.search(r'[0-9]', race_grade_info[0].get('class')[1]).group()
 
-    horse_df = get_horse_date(horse_ids)
+    horse_df = get_horse_data(horse_ids)
 
     race_df['horse_id'] = horse_ids
+    race_df['jockey_id'] = jockey_ids
     race_df['race_grade'] = race_grade
     race_df['race_type'] = race_type
     race_df['wise'] = wise
@@ -172,7 +179,23 @@ def main():
 
     graph = df2graph(df)
 
-    predict_race(graph)
+    if args.model_weight == 'all':
+        print('1着の予想確率')
+        predict_race(graph, 'weight_rank_1')
+        print('2着の予想確率')
+        predict_race(graph, 'weight_rank_2')
+        print('3着の予想確率')
+        predict_race(graph, 'weight_rank_3')
+    else:
+        predict_race(graph, args.model_weight)
 
 if __name__ == '__main__':
-    main()
+    import argparse
+
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument('--model_weight', '-m', default='all')
+
+    args = parser.parse_args()
+
+    main(args)
