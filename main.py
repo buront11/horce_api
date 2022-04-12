@@ -114,7 +114,7 @@ def main(args):
     chrome_service = webdriver.chrome.service.Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=chrome_service, options=options)
 
-    url = 'https://race.netkeiba.com/race/shutuba.html?race_id=202207020611&rf=race_submenu'
+    url = 'https://race.netkeiba.com/race/shutuba.html?race_id=202206020711&rf=race_submenu'
 
     driver.get(url)
 

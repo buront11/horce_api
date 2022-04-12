@@ -83,6 +83,7 @@ def train(dataset, model, criterion, optim, batch_size, epochs, device, pred_ran
             for batched_graph, label in train_dataloader:
                 optim.zero_grad()
 
+                batched_graph = batched_graph.to(device)
                 feats = batched_graph.ndata['feat'].to(device)
                 outputs = model(batched_graph, feats)
                 label = label.to(device)
@@ -102,6 +103,8 @@ def train(dataset, model, criterion, optim, batch_size, epochs, device, pred_ran
             model.eval()
             with torch.no_grad():
                 for batched_graph, label in valid_dataloader:
+
+                    batched_graph = batched_graph.to(device)
                     feats = batched_graph.ndata['feat'].to(device)
                     outputs = model(batched_graph, feats)
                     label = label.to(device)
@@ -124,6 +127,8 @@ def train(dataset, model, criterion, optim, batch_size, epochs, device, pred_ran
         if min_loss >= valid_loss:
             model_path = f'./data/weight_rank_{pred_rank}'
             torch.save(model.state_dict(), model_path)
+    model_path = f'./data/weight_rank_{pred_rank}_end'
+    torch.save(model.state_dict(), model_path)
 
 def predict_race(dataset, weight ,device='cpu'):
     model = GCNClassifier()
@@ -144,15 +149,17 @@ def predict_race(dataset, weight ,device='cpu'):
             print(f'{index+1}番 : {pred}')
 
 
-def eval(dataset, pred_rank, device='cpu'):
-    model = GCNClassifier()
+def eval(dataset, model, pred_rank, device='cpu'):
+    model = model.to(device)
     model.load_state_dict(torch.load(f'./data/weight_rank_{pred_rank}', map_location=torch.device(device)))
 
     dataloader = GraphDataLoader(dataset, batch_size=1, shuffle=True, drop_last=True)
 
     with torch.no_grad():
         total = 0
-        correct = 0
+        true_correct = 0
+        third_correct = 0
+        five_correct = 0
         for graph, label in dataloader:
             feats = graph.ndata['feat'].to(device)
             outputs = model(graph, feats)
@@ -167,10 +174,16 @@ def eval(dataset, pred_rank, device='cpu'):
             _, predicted = torch.max(outputs.data, 1)
 
             total += label.size(0)
-            # 上位3位に予想した馬が入っていたら正解とする
+
+            if label.item() == sort_index[0]:
+                true_correct += 1
             if label.item() in sort_index[:3]:
-                correct += 1
-        print('accuracy: {}%'.format(correct/total*100))
+                third_correct += 1
+            if label.item() in sort_index[:5]:
+                five_correct += 1
+        print('正しく一位を予測できた確率 : {}%'.format(true_correct/total*100))
+        print('一位が予測上位3頭以内の確率: {}%'.format(third_correct/total*100))
+        print('一位が予測上位5頭以内の確率: {}%'.format(five_correct/total*100))
 
 
 def node_train(dataset, model, criterion, optim, batch_size, epochs, device):
@@ -292,12 +305,12 @@ def main(args):
     train_dataset = GCNDataset(device, pred_rank=pred_rank,nn_type='graph', csv_path='train_dataset.csv')
     test_dataset = GCNDataset(device='cpu', pred_rank=pred_rank, nn_type='graph', csv_path='test_dataset.csv')
 
-    model = GCNClassifier()
+    model = GCNClassifier(pool_type='mean')
     optimizer = optim.Adam(model.parameters(), lr=0.001)
     criterion = nn.CrossEntropyLoss()
 
-    train(train_dataset, model, criterion, optimizer, batch_size=32, epochs=100, device=device, pred_rank=pred_rank)
-    eval(test_dataset, pred_rank=pred_rank)
+    train(train_dataset, model, criterion, optimizer, batch_size=256, epochs=30, device=device, pred_rank=pred_rank)
+    eval(test_dataset, model, pred_rank=pred_rank)
 
 if __name__ == '__main__':
     import argparse
