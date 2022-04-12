@@ -1,12 +1,11 @@
+import dgl
 import networkx as nx
 import pandas as pd
-
 import torch
 from torch.utils.data import Dataset
 
-import dgl
-
 from preprocess import preprocess
+
 
 class GCNDataset(Dataset):
     def __init__(self, device, pred_rank=1,nn_type='graph', csv_path='dataset.csv') -> None:

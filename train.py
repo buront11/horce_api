@@ -1,18 +1,20 @@
+import datetime
+import os
+
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from torch.utils.data import DataLoader, Subset
-
 from dgl.data import CoraGraphDataset
 from dgl.dataloading import GraphDataLoader
-
+from sklearn.model_selection import KFold, train_test_split
+from torch.utils.data import DataLoader, Subset
 from tqdm import tqdm
-import numpy as np
-from sklearn.model_selection import train_test_split, KFold
 
-from models import GCNClassifier, NodeClassifier, Classifier
 from dataset import GCNDataset
+from models import Classifier, GCNClassifier, NodeClassifier
+
 
 def _train(dataset, model, criterion, optim, batch_size, epochs, device):
 
@@ -296,6 +298,13 @@ def nn_train(dataset, model, criterion, optim, batch_size, epochs, device):
 
 def main(args):
     pred_rank = args.pred_rank
+    if args.out_dir:
+        out_dir = f'data/{args.out_dir}'
+        os.makedirs(out_dir)
+    else:
+        now = datetime.datetime.now()
+        out_dir = f"data/{now.strftime('%Y%m%d_%H%M%S')}"
+        os.makedirs(out_dir)
 
     if torch.cuda.is_available():
         device = 'cuda'
@@ -318,6 +327,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--pred_rank', '-r', default=1)
+    parser.add_argument('--out_dir', '-o', default=None)
 
     args = parser.parse_args()
     main(args)

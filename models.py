@@ -2,8 +2,11 @@ import dgl
 import dgl.nn.pytorch as dglnn
 import torch.nn as nn
 import torch.nn.functional as F
+from dgl.nn.pytorch.glob import (AvgPooling, GlobalAttentionPooling,
+                                 MaxPooling, SumPooling)
 
-from dgl.nn.pytorch.glob import AvgPooling, MaxPooling, SumPooling, GlobalAttentionPooling
+from config import Parameters
+
 
 # TODO ノード分類で試してみる
 class GCNClassifier(nn.Module):
@@ -87,3 +90,7 @@ class Classifier(nn.Module):
         x = self.fc4(x)
 
         return x
+
+if __name__ == '__main__':
+    params = Parameters()
+    
