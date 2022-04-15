@@ -31,7 +31,7 @@ class GCNDataset(Dataset):
                 graph = nx.complete_graph(len(race_df))
 
                 # TODO horse_numberをdropするかいなかを試す
-                for index, row in enumerate(race_df.drop(['ranking','horse_num','race_id','horse_id','jockey_id','trainer_id'], axis=1).values.tolist()):
+                for index, row in enumerate(race_df.drop(['ranking','horse_num','race_id','horse_id','jockey_id','trainer_id','race_grade_1','race_grade_2','race_grade_3','race_grade_4'], axis=1).values.tolist()):
                     graph.nodes[index]['feat'] = row
 
                 if self.nn_type=='node':

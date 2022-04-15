@@ -114,7 +114,7 @@ def main(args):
     chrome_service = webdriver.chrome.service.Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=chrome_service, options=options)
 
-    url = 'https://race.netkeiba.com/race/shutuba.html?race_id=202209020611&rf=race_submenu'
+    url = 'https://race.netkeiba.com/race/shutuba.html?race_id=202209020411&rf=race_submenu'
 
     driver.get(url)
 
@@ -176,24 +176,26 @@ def main(args):
     race_df['start_time'] = start_time
 
     df = api_preprocess(race_df, horse_df)
+    df = df.drop(columns=['race_grade_1','race_grade_2','race_grade_3','race_grade_4'])
 
     graph = df2graph(df)
 
     if args.model_weight == 'all':
         print('1着の予想確率')
-        predict_race(graph, 'weight_rank_1')
+        predict_race(graph, args.model_dir,'weight_rank_1')
         print('2着の予想確率')
-        predict_race(graph, 'weight_rank_2')
+        predict_race(graph, args.model_dir,'weight_rank_2')
         print('3着の予想確率')
-        predict_race(graph, 'weight_rank_3')
+        predict_race(graph, args.model_dir,'weight_rank_3')
     else:
-        predict_race(graph, args.model_weight)
+        predict_race(graph, args.model_dir,args.model_weight)
 
 if __name__ == '__main__':
     import argparse
 
     parser = argparse.ArgumentParser()
 
+    parser.add_argument('--model_dir')
     parser.add_argument('--model_weight', '-m', default='all')
 
     args = parser.parse_args()

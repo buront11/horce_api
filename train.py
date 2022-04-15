@@ -12,8 +12,9 @@ from sklearn.model_selection import KFold, train_test_split
 from torch.utils.data import DataLoader, Subset
 from tqdm import tqdm
 
+from config import Parameters
 from dataset import GCNDataset
-from models import Classifier, GCNClassifier, NodeClassifier
+from models import Classifier, GCNClassifier, NodeClassifier, GATClassifier
 
 
 def _train(dataset, model, criterion, optim, batch_size, epochs, device):
@@ -59,7 +60,7 @@ def _train(dataset, model, criterion, optim, batch_size, epochs, device):
             model_path = './data/weight'
             torch.save(model.state_dict(), model_path)
 
-def train(dataset, model, criterion, optim, batch_size, epochs, device, pred_rank,n_splits=5):
+def train(dataset, model, criterion, optim, batch_size, epochs, device, pred_rank, out_dir,n_splits=5):
     kf = KFold(n_splits=n_splits)
     model = model.to(device)
     criterion = criterion
@@ -127,14 +128,14 @@ def train(dataset, model, criterion, optim, batch_size, epochs, device, pred_ran
         print('valid accuracy :{} %'.format(valid_correct/valid_total*100))
 
         if min_loss >= valid_loss:
-            model_path = f'./data/weight_rank_{pred_rank}'
+            model_path = f'{out_dir}/weight_rank_{pred_rank}'
             torch.save(model.state_dict(), model_path)
-    model_path = f'./data/weight_rank_{pred_rank}_end'
+    model_path = f'{out_dir}/weight_rank_{pred_rank}_end'
     torch.save(model.state_dict(), model_path)
 
-def predict_race(dataset, weight ,device='cpu'):
-    model = GCNClassifier()
-    model.load_state_dict(torch.load(f'data/{weight}', map_location=torch.device('cpu')))
+def predict_race(dataset, model_dir, weight, device='cpu'):
+    model = GCNClassifier(pool_type='attention')
+    model.load_state_dict(torch.load(f'data/{model_dir}/{weight}', map_location=torch.device('cpu')))
 
     with torch.no_grad():
         feats = dataset.ndata['feat'].to(device)
@@ -151,9 +152,9 @@ def predict_race(dataset, weight ,device='cpu'):
             print(f'{index+1}番 : {pred}')
 
 
-def eval(dataset, model, pred_rank, device='cpu'):
+def eval(dataset, model, pred_rank, out_dir,device='cpu'):
     model = model.to(device)
-    model.load_state_dict(torch.load(f'./data/weight_rank_{pred_rank}', map_location=torch.device(device)))
+    model.load_state_dict(torch.load(f'{out_dir}/weight_rank_{pred_rank}', map_location=torch.device(device)))
 
     dataloader = GraphDataLoader(dataset, batch_size=1, shuffle=True, drop_last=True)
 
@@ -296,30 +297,35 @@ def nn_train(dataset, model, criterion, optim, batch_size, epochs, device):
             model_path = './data/weight'
             torch.save(model.state_dict(), model_path)
 
-def main(args):
+def main(params, args):
     pred_rank = args.pred_rank
     if args.out_dir:
         out_dir = f'data/{args.out_dir}'
-        os.makedirs(out_dir)
+        os.makedirs(out_dir, exist_ok=True)
     else:
         now = datetime.datetime.now()
         out_dir = f"data/{now.strftime('%Y%m%d_%H%M%S')}"
-        os.makedirs(out_dir)
+        os.makedirs(out_dir, exist_ok=True)
 
     if torch.cuda.is_available():
-        device = 'cuda'
+        device = 'cuda:1'
     else:
         device = 'cpu'
 
     train_dataset = GCNDataset(device, pred_rank=pred_rank,nn_type='graph', csv_path='train_dataset.csv')
     test_dataset = GCNDataset(device='cpu', pred_rank=pred_rank, nn_type='graph', csv_path='test_dataset.csv')
 
-    model = GCNClassifier(pool_type='mean')
+    # model = GCNClassifier(pool_type='attention')
+    NUM_LAYERS = 3
+    NUM_HEADS = 3
+    heads = [NUM_HEADS for _ in range(NUM_LAYERS)]
+    model = GATClassifier(num_heads=heads)
+    print(model)
     optimizer = optim.Adam(model.parameters(), lr=0.001)
     criterion = nn.CrossEntropyLoss()
 
-    train(train_dataset, model, criterion, optimizer, batch_size=256, epochs=30, device=device, pred_rank=pred_rank)
-    eval(test_dataset, model, pred_rank=pred_rank)
+    train(train_dataset, model, criterion, optimizer, batch_size=32, epochs=50, device=device, pred_rank=pred_rank, out_dir=out_dir)
+    eval(test_dataset, model, pred_rank=pred_rank, out_dir=out_dir)
 
 if __name__ == '__main__':
     import argparse
@@ -330,4 +336,6 @@ if __name__ == '__main__':
     parser.add_argument('--out_dir', '-o', default=None)
 
     args = parser.parse_args()
-    main(args)
+    params = Parameters(ARGS=args)
+
+    main(params, args)
