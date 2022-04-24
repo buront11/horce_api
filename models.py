@@ -64,7 +64,7 @@ class GCNClassifier(nn.Module):
 class GATClassifier(nn.Module):
     # 馬の最大頭数は18頭なので分類は18classとする
     def __init__(self, num_heads, in_feat=63, hidden_feat=1024, n_classifier=18, gnn_dropout=0.3, affine_dropout=0.5,
-        feat_drop=0.1,attn_drop=0.1, pool_type='mean'):
+        feat_drop=0,attn_drop=0, pool_type='mean'):
         super(GATClassifier, self).__init__()
         self.conv1 = dglnn.GATv2Conv(in_feat, hidden_feat, num_heads=num_heads[0], feat_drop=feat_drop, attn_drop=attn_drop)
         self.conv2 = dglnn.GATv2Conv(hidden_feat*num_heads[0], hidden_feat, num_heads=num_heads[1], feat_drop=feat_drop, attn_drop=attn_drop)

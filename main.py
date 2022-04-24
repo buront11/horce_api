@@ -114,9 +114,13 @@ def main(args):
     chrome_service = webdriver.chrome.service.Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=chrome_service, options=options)
 
-    url = 'https://race.netkeiba.com/race/shutuba.html?race_id=202209020411&rf=race_submenu'
+    url = 'https://rms.ne.jp/sslserver/install/install_nginx-html/'
 
     driver.get(url)
+
+    print(driver.page_source)
+
+    dd
 
     race_df = pd.read_html(driver.page_source)[0]
     race_df.columns = race_df.columns.droplevel(0)

@@ -137,6 +137,7 @@ def predict_race(dataset, model_dir, weight, device='cpu'):
     model = GCNClassifier(pool_type='attention')
     model.load_state_dict(torch.load(f'data/{model_dir}/{weight}', map_location=torch.device('cpu')))
 
+    model.eval()
     with torch.no_grad():
         feats = dataset.ndata['feat'].to(device)
         outputs = model(dataset, feats)
@@ -157,7 +158,7 @@ def eval(dataset, model, pred_rank, out_dir,device='cpu'):
     model.load_state_dict(torch.load(f'{out_dir}/weight_rank_{pred_rank}', map_location=torch.device(device)))
 
     dataloader = GraphDataLoader(dataset, batch_size=1, shuffle=True, drop_last=True)
-
+    model.eval()
     with torch.no_grad():
         total = 0
         true_correct = 0
@@ -315,16 +316,16 @@ def main(params, args):
     train_dataset = GCNDataset(device, pred_rank=pred_rank,nn_type='graph', csv_path='train_dataset.csv')
     test_dataset = GCNDataset(device='cpu', pred_rank=pred_rank, nn_type='graph', csv_path='test_dataset.csv')
 
-    # model = GCNClassifier(pool_type='attention')
-    NUM_LAYERS = 3
-    NUM_HEADS = 3
-    heads = [NUM_HEADS for _ in range(NUM_LAYERS)]
-    model = GATClassifier(num_heads=heads)
+    model = GCNClassifier(pool_type='attention')
+    # NUM_LAYERS = 3
+    # NUM_HEADS = 3
+    # heads = [NUM_HEADS for _ in range(NUM_LAYERS)]
+    # model = GATClassifier(num_heads=heads, pool_type='attention')
     print(model)
-    optimizer = optim.Adam(model.parameters(), lr=0.001)
+    optimizer = optim.Adam(model.parameters(), lr=2e-5)
     criterion = nn.CrossEntropyLoss()
 
-    train(train_dataset, model, criterion, optimizer, batch_size=32, epochs=50, device=device, pred_rank=pred_rank, out_dir=out_dir)
+    train(train_dataset, model, criterion, optimizer, batch_size=256, epochs=50, device=device, pred_rank=pred_rank, out_dir=out_dir)
     eval(test_dataset, model, pred_rank=pred_rank, out_dir=out_dir)
 
 if __name__ == '__main__':

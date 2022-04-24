@@ -42,6 +42,25 @@ def split_race_info(race_infos):
 
     return race_type, wise, meter, weather, race_state, start_time
 
+def split_race_detail(race_detail):
+    race_details = race_detail.split(' ')
+
+    date = datetime.strptime(race_details[0], "%Y年%m月%d日")
+    year = date.year
+    month = date.month
+    day = date.day
+
+    race_num = re.search(r'[0-9]+回', race_details[1]).group()
+    race_num = re.sub(r'回', '', race_num)
+
+    location = re.sub(r'[0-9]+回', '', race_details[1])
+    location = re.sub(r'[0-9]+日目', '', location)
+
+    race_names = race_details[2].split()
+    race_title = race_names[0]
+
+    return location, race_num
+
 class HorceDateCollecter():
     def __init__(self):
         # 前回の実行時刻を取得
@@ -156,6 +175,10 @@ class HorceDateCollecter():
                 
                 race_type, wise, meter, weather, race_state, start_time = split_race_info(race_infos=race_infos)
 
+                race_detail = soup.select_one('p.smalltxt').get_text()
+
+                location, race_num= split_race_detail(race_detail)
+
                 df_horses['race_grade'] = race_grade
                 df_horses['race_type'] = race_type
                 df_horses['wise'] = wise
@@ -163,6 +186,8 @@ class HorceDateCollecter():
                 df_horses['weather'] = weather
                 df_horses['race_state'] = race_state
                 df_horses['start_time'] = start_time
+                df_horses['location'] = location
+                df_horses['race_num'] = race_num
 
                 self.race_df = pd.concat([self.race_df, df_horses], ignore_index=True)
 
