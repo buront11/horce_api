@@ -1,5 +1,5 @@
 /venv/
-log.txt
+log*
 *.csv
 /.vscode/
 last_updata_log.txt

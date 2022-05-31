@@ -59,23 +59,23 @@ def split_race_detail(race_detail):
     race_names = race_details[2].split()
     race_title = race_names[0]
 
-    return location, race_num
+    return location, race_num, race_title
 
 class HorceDateCollecter():
-    def __init__(self):
+    def __init__(self, args):
         # 前回の実行時刻を取得
         try:
             with open('last_updata_log.txt', 'r') as f:
                 self.start_date = datetime.strptime(f.read(), '%Y-%m-%d').date()
         except FileNotFoundError:
             # 前回のデータがない場合は2008年1月1日からスクレイピング
-            self.start_date = datetime(2012, 1, 1).date()
+            self.start_date = datetime(1999, 1, 1).date()
             
         # 前回のデータとの差分をとって最新のデータのみ持ってくる
         self.dt_today = datetime.utcnow().date()
 
         # try:
-        #     self.race_df = pd.read_csv('race_data.csv')
+            # self.race_df = pd.read_csv('race_data.csv')
         # except:
         self.race_df = pd.DataFrame(columns=["着順","枠番","馬番","馬名","性齢","斤量","騎手",\
                                             "タイム","着差","単勝","人気","馬体重","調教師",\
@@ -88,6 +88,11 @@ class HorceDateCollecter():
                                             '着順','騎手','斤量','距離','馬場','馬場指数','タイム','着差','ﾀｲﾑ指数','通過','ペース',
                                             '上り','馬体重','厩舎ｺﾒﾝﾄ','備考','勝ち馬(2着馬)','賞金','horse_id','race_id','jockey_id'])
 
+        self.proxy = {
+            "http":"http://proxy.nagaokaut.ac.jp:8080",
+            "https":"http://proxy.nagaokaut.ac.jp:8080"
+        }
+
     def get_race_data(self):
         for date in date_range(self.start_date, self.dt_today):
             # データをとった日付を記録
@@ -96,7 +101,7 @@ class HorceDateCollecter():
 
             date = re.sub('-', '', str(date))
             url = 'https://db.netkeiba.com/race/list/' + date
-            res = requests.get(url)
+            res = requests.get(url, proxies=self.proxy)
             res.encoding = cchardet.detect(res.content)["encoding"]
 
             soup = BeautifulSoup(res.content, 'lxml')
@@ -112,13 +117,13 @@ class HorceDateCollecter():
                 url = 'https://db.netkeiba.com' + race
                 race_id = re.search(r'[0-9]+', race).group()
 
-                res = requests.get(url)
+                res = requests.get(url, proxies=self.proxy)
                 res.encoding = cchardet.detect(res.content)["encoding"]
 
                 soup = BeautifulSoup(res.content, 'lxml')
 
                 # 出走馬情報
-                df_horses = pd.read_html(res.content)[0]
+                df_horses = pd.read_html(res.content,match='馬名')[0]
 
                 df_horses['race_id'] = race_id
 
@@ -177,7 +182,7 @@ class HorceDateCollecter():
 
                 race_detail = soup.select_one('p.smalltxt').get_text()
 
-                location, race_num= split_race_detail(race_detail)
+                location, race_num, race_name= split_race_detail(race_detail)
 
                 df_horses['race_grade'] = race_grade
                 df_horses['race_type'] = race_type
@@ -188,14 +193,17 @@ class HorceDateCollecter():
                 df_horses['start_time'] = start_time
                 df_horses['location'] = location
                 df_horses['race_num'] = race_num
+                df_horses['race_title'] = race_name
 
                 self.race_df = pd.concat([self.race_df, df_horses], ignore_index=True)
 
-                time.sleep(1)
+                time.sleep(2)
             
             self.race_df.to_csv('race_data.csv', index=False)
 
     def get_horse_date(self):
+        self.race_df = pd.read_csv('race_data.csv')
+
         horse_ids = self.race_df['horse_id'].unique()
 
         # 馬の情報の取得
@@ -204,11 +212,22 @@ class HorceDateCollecter():
             
             url = 'https://db.netkeiba.com/horse/' + str(horse_ids[index])
 
-            res = requests.get(url)
+            res = requests.get(url, proxies=self.proxy)
             res.encoding = cchardet.detect(res.content)["encoding"]
-            soup = BeautifulSoup(res.content, 'lxml')
+            # lxmlだといくつかの要素を持ってこれないことがあったのでhtml5libにする
+            soup = BeautifulSoup(res.content, 'html5lib')
 
-            df_horses = pd.read_html(res.content, match='レース名')[0]
+            tables = soup.select('div.db_main_race.fc table')
+
+            # pd.read_htmlのみの場合いくつかのtableを持ってこれない場合があったのでbs4経由に変更
+            for index, tb in enumerate(tables):
+                if index == 0:
+                    df_horses = pd.read_html(str(tb))[0]
+                else:
+                    df_horses_add = pd.read_html(str(tb))[0]
+                    df_horses = pd.concat([df_horses, df_horses_add], ignore_index=False)
+
+            # df_horses = pd.read_html(res.content, match='レース名')[0]
 
             # 馬、騎手、調教師、所有者のidを取得し、名前に対応した辞書を作成する
             info_ids = soup.select('table.db_h_race_results.nk_tb_common td a')
@@ -267,7 +286,7 @@ class HorceDateCollecter():
 
             self.horse_df = pd.concat([self.horse_df, df_horses], ignore_index=True)
 
-            time.sleep(1)
+            time.sleep(2)
 
         self.horse_df.to_csv('horse_data.csv', index=False)
 
@@ -279,7 +298,7 @@ class HorceDateCollecter():
 
             url = 'https://db.netkeiba.com/jockey/' + id
 
-            res = requests.get(url)
+            res = requests.get(url, proxies=self.proxy)
             res.encoding = res.apparent_encoding
             soup = BeautifulSoup(res.content, 'html.parser')
 
@@ -291,7 +310,7 @@ class HorceDateCollecter():
             if jockey_name not in new_jockey_ids.keys():
                 new_jockey_ids.update({jockey_name:id})
 
-            time.sleep(1)
+            time.sleep(2)
 
         self.jockey_ids = new_jockey_ids
         with open('./data/jockeys.json', 'w') as f:
@@ -371,7 +390,7 @@ def complement_horse_name():
         print(horse_name)
         # 空白の削除
         horse_name = re.sub(r'\s', '', horse_name)
-        time.sleep(1)
+        time.sleep(2)
         if horse_name not in horse_db.keys():
             horse_db.update({horse_name:horse_ids[i]})
 
@@ -380,9 +399,9 @@ def complement_horse_name():
         
 def main(args):
 
-    horce_collect = HorceDateCollecter()
+    horce_collect = HorceDateCollecter(args)
 
-    horce_collect.get_race_data()
+    # horce_collect.get_race_data()
 
     horce_collect.get_horse_date()
 
