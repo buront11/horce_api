@@ -117,6 +117,9 @@ class HorceDateCollecter():
 
                 soup = BeautifulSoup(res.content, 'lxml')
 
+                print(res.content)
+                dd
+
                 # 出走馬情報
                 df_horses = pd.read_html(res.content)[0]
 

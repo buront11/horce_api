@@ -114,18 +114,12 @@ def main(args):
     chrome_service = webdriver.chrome.service.Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=chrome_service, options=options)
 
-    url = 'https://rms.ne.jp/sslserver/install/install_nginx-html/'
+    url = 'https://race.netkeiba.com/race/shutuba.html?race_id=202206050911&rf=special_sidemenu'
 
     driver.get(url)
 
-    print(driver.page_source)
-
-    dd
-
     race_df = pd.read_html(driver.page_source)[0]
     race_df.columns = race_df.columns.droplevel(0)
-
-    driver.quit()
 
     res = requests.get(url)
     res.encoding = cchardet.detect(res.content)["encoding"]
@@ -193,6 +187,8 @@ def main(args):
         predict_race(graph, args.model_dir,'weight_rank_3')
     else:
         predict_race(graph, args.model_dir,args.model_weight)
+
+    driver.quit()
 
 if __name__ == '__main__':
     import argparse
