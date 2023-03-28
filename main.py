@@ -9,6 +9,7 @@ import dgl
 from bs4 import BeautifulSoup
 
 from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver import DesiredCapabilities
 from selenium import webdriver
 
 from preprocess import api_preprocess
@@ -87,7 +88,7 @@ def get_horse_data(horse_ids):
 
         horse_df = pd.concat([horse_df, race_df], ignore_index=True)
 
-        time.sleep(1)
+        time.sleep(3)
 
     return horse_df
 
@@ -108,17 +109,27 @@ def main(args):
 
     options = webdriver.ChromeOptions()
 
-    options.add_argument('--headless')
     options.add_argument("--no-sandbox")
+    options.add_argument("--disable-gpu")
+
+    UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36'
+
+    options.add_argument('--user-agent=' + UA)
+
+    capabilities = DesiredCapabilities.CHROME.copy()
+    capabilities['acceptSslCerts'] = True 
+    capabilities['acceptInsecureCerts'] = True
 
     chrome_service = webdriver.chrome.service.Service(ChromeDriverManager().install())
-    driver = webdriver.Chrome(service=chrome_service, options=options)
+    driver = webdriver.Chrome(service=chrome_service, options=options,desired_capabilities=capabilities)
 
-    url = 'https://race.netkeiba.com/race/shutuba.html?race_id=202306020312&rf=race_submenu'
+    url = 'https://race.netkeiba.com/race/shutuba.html?race_id=202206050911&rf=special_sidemenu'
 
     driver.get(url)
+    time.sleep(3)
 
     race_df = pd.read_html(driver.page_source)[0]
+    print(race_df)
     race_df.columns = race_df.columns.droplevel(0)
 
     res = requests.get(url)
@@ -187,6 +198,8 @@ def main(args):
         predict_race(graph, args.model_dir,'weight_rank_3')
     else:
         predict_race(graph, args.model_dir,args.model_weight)
+
+    driver.quit()
 
 if __name__ == '__main__':
     import argparse
