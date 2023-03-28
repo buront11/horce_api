@@ -1,7 +1,8 @@
 /venv/
-log.txt
+log*
 *.csv
 /.vscode/
 last_updata_log.txt
 /__pycache__/*
 /data/
+/apienv/

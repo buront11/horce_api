@@ -9,6 +9,8 @@ from dgl.nn.pytorch.glob import (AvgPooling, GlobalAttentionPooling,
 from config import Parameters
 
 # TODO ノード分類で試してみる
+# TODO 残差接続を追加する
+# TODO モデルの大規模化
 class GCNClassifier(nn.Module):
     # 馬の最大頭数は18頭なので分類は18classとする
     def __init__(self, in_feat=63, hidden_feat=2048, n_classifier=18, gnn_dropout=0.3, affine_dropout=0.5,
