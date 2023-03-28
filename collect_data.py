@@ -64,29 +64,32 @@ def split_race_detail(race_detail):
 class HorceDateCollecter():
     def __init__(self, args):
         # 前回の実行時刻を取得
-        try:
-            with open('last_updata_log.txt', 'r') as f:
-                self.start_date = datetime.strptime(f.read(), '%Y-%m-%d').date()
-        except FileNotFoundError:
-            # 前回のデータがない場合は2008年1月1日からスクレイピング
-            self.start_date = datetime(1999, 1, 1).date()
+        if args.new_data:
+            self.start_date = datetime(2000, 1, 1).date()
+        else:
+            try:
+                with open('last_updata_log.txt', 'r') as f:
+                    self.start_date = datetime.strptime(f.read(), '%Y-%m-%d').date()
+            except FileNotFoundError:
+                # 前回のデータがない場合は2008年1月1日からスクレイピング
+                self.start_date = datetime(2000, 1, 1).date()
             
         # 前回のデータとの差分をとって最新のデータのみ持ってくる
         self.dt_today = datetime.utcnow().date()
 
-        # try:
-            # self.race_df = pd.read_csv('race_data.csv')
-        # except:
-        self.race_df = pd.DataFrame(columns=["着順","枠番","馬番","馬名","性齢","斤量","騎手",\
-                                            "タイム","着差","単勝","人気","馬体重","調教師",\
-                                            "race_id","horse_id","jockey_id","trainer_id"])
+        if args.race_update:
+            self.race_df = pd.read_csv('race_data.csv')
+        else:
+            self.race_df = pd.DataFrame(columns=["着順","枠番","馬番","馬名","性齢","斤量","騎手",\
+                                                "タイム","着差","単勝","人気","馬体重","調教師",\
+                                                "race_id","horse_id","jockey_id","trainer_id"])
 
-        # try:
-        #     self.horse_df = pd.read_csv('horse_data.csv')
-        # except:
-        self.horse_df = pd.DataFrame(columns=['日付','開催','天気','R','レース名','映像','頭数','枠番','馬番','オッズ','人気',
-                                            '着順','騎手','斤量','距離','馬場','馬場指数','タイム','着差','ﾀｲﾑ指数','通過','ペース',
-                                            '上り','馬体重','厩舎ｺﾒﾝﾄ','備考','勝ち馬(2着馬)','賞金','horse_id','race_id','jockey_id'])
+        if args.horce_update:
+            self.horse_df = pd.read_csv('horse_data.csv')
+        else:
+            self.horse_df = pd.DataFrame(columns=['日付','開催','天気','R','レース名','映像','頭数','枠番','馬番','オッズ','人気',
+                                                '着順','騎手','斤量','距離','馬場','馬場指数','タイム','着差','ﾀｲﾑ指数','通過','ペース',
+                                                '上り','馬体重','厩舎ｺﾒﾝﾄ','備考','勝ち馬(2着馬)','賞金','horse_id','race_id','jockey_id'])
 
         self.proxy = {
             "http":"http://proxy.nagaokaut.ac.jp:8080",
@@ -101,7 +104,7 @@ class HorceDateCollecter():
 
             date = re.sub('-', '', str(date))
             url = 'https://db.netkeiba.com/race/list/' + date
-            res = requests.get(url, proxies=self.proxy)
+            res = requests.get(url)
             res.encoding = cchardet.detect(res.content)["encoding"]
 
             soup = BeautifulSoup(res.content, 'lxml')
@@ -112,93 +115,109 @@ class HorceDateCollecter():
             print('get date {} now ...'.format(date))
 
             race_urls = hold_race.find_all('a', title=re.compile(r'.+'))
+
+            amount_of_error = 0
+
             for index in tqdm(range(len(race_urls))):
-                race = race_urls[index].get('href')
-                url = 'https://db.netkeiba.com' + race
-                race_id = re.search(r'[0-9]+', race).group()
+                    while True:
+                        try:
+                            race = race_urls[index].get('href')
+                            url = 'https://db.netkeiba.com' + race
+                            race_id = re.search(r'[0-9]+', race).group()
 
-                res = requests.get(url, proxies=self.proxy)
-                res.encoding = cchardet.detect(res.content)["encoding"]
+                            res = requests.get(url)
+                            res.encoding = cchardet.detect(res.content)["encoding"]
 
-                soup = BeautifulSoup(res.content, 'lxml')
+                            soup = BeautifulSoup(res.content, 'lxml')
 
-                # 出走馬情報
-                df_horses = pd.read_html(res.content,match='馬名')[0]
+                            # 出走馬情報
+                            df_horses = pd.read_html(res.content,match='馬名')[0]
 
-                df_horses['race_id'] = race_id
+                            df_horses['race_id'] = race_id
 
-                # 前処理として調教師の名前の東西は削除する
-                df_horses['調教師'] = df_horses['調教師'].apply(lambda x: re.sub(r'\[.\] ', '', x))
+                            # 前処理として調教師の名前の東西は削除する
+                            df_horses['調教師'] = df_horses['調教師'].apply(lambda x: re.sub(r'\[.\] ', '', x))
 
-                # 馬、騎手、調教師、所有者のidを取得し、名前に対応した辞書を作成する
-                info_ids = soup.select('td.txt_l a')
-                info_dicts = {}
-                for info in info_ids:
-                    info_type = re.search(r'[a-z]+', info.get('href')).group()
-                    name = info.get_text()
-                    id = re.search(r'[0-9]+', info.get('href')).group()
+                            # 馬、騎手、調教師、所有者のidを取得し、名前に対応した辞書を作成する
+                            info_ids = soup.select('td.txt_l a')
+                            info_dicts = {}
+                            for info in info_ids:
+                                info_type = re.search(r'[a-z]+', info.get('href')).group()
+                                name = info.get_text()
+                                id = re.search(r'[0-9]+', info.get('href')).group()
 
-                    # 馬主はtableで持ってこれないため現状はスキップする
-                    if info_type == 'owner':
-                        continue
+                                # 馬主はtableで持ってこれないため現状はスキップする
+                                if info_type == 'owner':
+                                    continue
 
-                    if info_type not in info_dicts.keys():
-                        info_dicts.update({info_type:{name:id}})
-                    else:
-                        info_dicts[info_type].update({name:id})
+                                if info_type not in info_dicts.keys():
+                                    info_dicts.update({info_type:{name:id}})
+                                else:
+                                    info_dicts[info_type].update({name:id})
 
-                # webページから持ってきたtableに代入する用のlistを作成
-                for info_type, values in info_dicts.items():
-                    if info_type == "horse":
-                        column = "馬名"
-                    elif info_type == "jockey":
-                        column = "騎手"
-                    elif info_type == "trainer":
-                        column = "調教師"
-                    # なぜか馬主がないためコメントアウト
-                    # else:
-                    #     column = "馬主"
-                    add_list = []
-                    for row in df_horses[column]:
-                        # idと名前を照合し、リストに追加
-                        add_list.append(values[row])
-                    # dfにidを新しい列として追加する
-                    df_horses[f'{info_type}_id'] = add_list
+                            # webページから持ってきたtableに代入する用のlistを作成
+                            for info_type, values in info_dicts.items():
+                                if info_type == "horse":
+                                    column = "馬名"
+                                elif info_type == "jockey":
+                                    column = "騎手"
+                                elif info_type == "trainer":
+                                    column = "調教師"
+                                # なぜか馬主がないためコメントアウト
+                                # else:
+                                #     column = "馬主"
+                                add_list = []
+                                for row in df_horses[column]:
+                                    # idと名前を照合し、リストに追加
+                                    add_list.append(values[row])
+                                # dfにidを新しい列として追加する
+                                df_horses[f'{info_type}_id'] = add_list
 
-                # レース情報　レース名/馬場距離/天候/状態/発走時刻
-                # 一旦なしで
-                race_title = soup.select_one('div.data_intro h1').get_text()
-                if re.search(r'G[1-3]', race_title):
-                    race_grade = re.search(r'G[1-3]', race_title).group()
-                else:
-                    race_grade = 'other'
-                # race_round = soup.select_one('div.data_intro dl.racedata.fc dt').get_text()
-                race_info = soup.select_one('div.data_intro diary_snap_cut span').get_text()
+                            # レース情報　レース名/馬場距離/天候/状態/発走時刻
+                            # 一旦なしで
+                            race_title = soup.select_one('div.data_intro h1').get_text()
+                            if re.search(r'G[1-3]', race_title):
+                                race_grade = re.search(r'G[1-3]', race_title).group()
+                            else:
+                                race_grade = 'other'
+                            # race_round = soup.select_one('div.data_intro dl.racedata.fc dt').get_text()
+                            race_info = soup.select_one('div.data_intro diary_snap_cut span').get_text()
 
-                race_info = re.sub(u'\xa0', '', race_info)
-                race_infos = re.sub(' ', '', race_info).split('/')
-                
-                race_type, wise, meter, weather, race_state, start_time = split_race_info(race_infos=race_infos)
+                            race_info = re.sub(u'\xa0', '', race_info)
+                            race_infos = re.sub(' ', '', race_info).split('/')
+                            
+                            race_type, wise, meter, weather, race_state, start_time = split_race_info(race_infos=race_infos)
 
-                race_detail = soup.select_one('p.smalltxt').get_text()
+                            race_detail = soup.select_one('p.smalltxt').get_text()
 
-                location, race_num, race_name= split_race_detail(race_detail)
+                            location, race_num, race_name= split_race_detail(race_detail)
 
-                df_horses['race_grade'] = race_grade
-                df_horses['race_type'] = race_type
-                df_horses['wise'] = wise
-                df_horses['meter'] = meter
-                df_horses['weather'] = weather
-                df_horses['race_state'] = race_state
-                df_horses['start_time'] = start_time
-                df_horses['location'] = location
-                df_horses['race_num'] = race_num
-                df_horses['race_title'] = race_name
+                            df_horses['race_grade'] = race_grade
+                            df_horses['race_type'] = race_type
+                            df_horses['wise'] = wise
+                            df_horses['meter'] = meter
+                            df_horses['weather'] = weather
+                            df_horses['race_state'] = race_state
+                            df_horses['start_time'] = start_time
+                            df_horses['location'] = location
+                            df_horses['race_num'] = race_num
+                            df_horses['race_title'] = race_name
 
-                self.race_df = pd.concat([self.race_df, df_horses], ignore_index=True)
+                            self.race_df = pd.concat([self.race_df, df_horses], ignore_index=True)
 
-                time.sleep(2)
-            
+                            time.sleep(3)
+
+                            break
+                        except:
+                            # データの取得中に何らかのエラーが出た場合、一分間待って再開する
+                            time.sleep(60)
+
+                            # エラーの回数が2回以上出たらプログラムを強制的に終了する。
+                            if amount_of_error == 0:
+                                continue
+                            else:
+                                exit(1)
+
             self.race_df.to_csv('race_data.csv', index=False)
 
     def get_horse_date(self):
@@ -401,9 +420,9 @@ def main(args):
 
     horce_collect = HorceDateCollecter(args)
 
-    # horce_collect.get_race_data()
+    horce_collect.get_race_data()
 
-    horce_collect.get_horse_date()
+    # horce_collect.get_horse_date()
 
     # horce_collect.get_correct_jockey_name()
 
@@ -415,6 +434,9 @@ if __name__=='__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--http_proxy', default='')
     parser.add_argument('--https_proxy', default='')
+    parser.add_argument('--new_data', '-n', action='store_true')
+    parser.add_argument('--race_update', '-r', action='store_true', help='raceデータを更新するときのフラグ、trueで更新、falseで新規取得')
+    parser.add_argument('--horce_update', '-h', action='store_true', help='horceデータを更新するときのフラグ、trueで更新、falseで新規取得')
 
     args = parser.parse_args()
 

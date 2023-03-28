@@ -309,7 +309,7 @@ def main(params, args):
         os.makedirs(out_dir, exist_ok=True)
 
     if torch.cuda.is_available():
-        device = 'cuda:1'
+        device = 'cuda:0'
     else:
         device = 'cpu'
 
